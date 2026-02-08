@@ -5,7 +5,8 @@ import { formatTime } from '../utils/api';
 import { 
   Send, ImagePlus, Moon, Sun, LogOut, Bot, User, 
   Menu, Settings, X, Cpu, Sparkles, Command, Zap, 
-  MessageSquare, Plus, Phone, Mic, MicOff, BarChart2 
+  MessageSquare, Plus, Phone, Mic, MicOff, BarChart2,
+  Square, Trash2 // <--- Added Icons here
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
@@ -235,10 +236,14 @@ const VoiceCallOverlay = ({ isActive, onClose, sendMessage, messages }) => {
     </div>
   );
 };
+
 const ChatInterface = () => {
+  // --- ADDED stopGeneration and deleteChat to destructuring ---
   const { 
     messages, sendMessage, isLoading, 
-    chatHistoryList, fetchChatList, loadChat, clearChat, chatId 
+    chatHistoryList, fetchChatList, loadChat, clearChat, chatId,
+    stopGeneration = () => console.warn("stopGeneration not implemented in hook"), 
+    deleteChat = (id) => console.warn("deleteChat not implemented in hook for", id)
   } = useChat();
   
   const { isDarkMode, toggleTheme } = useTheme();
@@ -275,16 +280,24 @@ const ChatInterface = () => {
     navigate('/');
   };
 
+  // Handler for deleting a chat from sidebar
+  const handleDeleteChat = async (e, id) => {
+    e.stopPropagation(); // Prevent loading the chat when deleting
+    if (window.confirm("Are you sure you want to delete this chat?")) {
+      await deleteChat(id);
+    }
+  };
+
   return (
     <div className={`relative flex h-screen w-full overflow-hidden font-sans transition-colors duration-500 ${isDarkMode ? 'dark text-gray-100' : 'text-gray-900'}`}>
       
       <BackgroundLayer theme={isDarkMode ? 'dark' : 'light'} type={bgType} />
       <VoiceCallOverlay 
-  isActive={isCallActive} 
-  onClose={() => setIsCallActive(false)} 
-  sendMessage={sendMessage} // Pass this
-  messages={messages}       // Pass this
-/>
+        isActive={isCallActive} 
+        onClose={() => setIsCallActive(false)} 
+        sendMessage={sendMessage}
+        messages={messages}
+      />
 
       {/* --- LEFT SIDEBAR --- */}
       <aside 
@@ -319,17 +332,32 @@ const ChatInterface = () => {
         <div className="flex-1 overflow-y-auto px-4 space-y-1 py-2 custom-scrollbar">
           <div className={`px-2 text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2 ${!isSidebarOpen && 'hidden'}`}>Memory Banks</div>
           {chatHistoryList.map((chat) => (
-            <button
-              key={chat._id}
-              onClick={() => loadChat(chat._id)}
-              className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all text-sm
-              ${chatId === chat._id 
-                ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400' 
-                : 'hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
-            >
-              <MessageSquare size={14} className={chatId === chat._id ? 'text-cyan-400' : 'opacity-50'} />
-              <span className={`truncate ${!isSidebarOpen && 'hidden'}`}>{chat.title || "Untitled Sequence"}</span>
-            </button>
+            // --- UPDATED: Wrapper div for relative positioning of Delete button ---
+            <div key={chat._id} className="relative group">
+                <button
+                onClick={() => loadChat(chat._id)}
+                className={`w-full text-left p-3 pr-9 rounded-lg flex items-center gap-3 transition-all text-sm
+                ${chatId === chat._id 
+                    ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400' 
+                    : 'hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                >
+                <MessageSquare size={14} className={chatId === chat._id ? 'text-cyan-400' : 'opacity-50'} />
+                <span className={`truncate ${!isSidebarOpen && 'hidden'}`}>{chat.title || "Untitled Sequence"}</span>
+                </button>
+                
+                {/* --- ADDED: Delete Button in Sidebar --- */}
+                {isSidebarOpen && (
+                    <button
+                        onClick={(e) => handleDeleteChat(e, chat._id)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md 
+                                   opacity-0 group-hover:opacity-100 transition-all duration-200
+                                   text-gray-400 hover:text-red-400 hover:bg-red-500/10 z-10"
+                        title="Delete Chat"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                )}
+            </div>
           ))}
         </div>
 
@@ -516,15 +544,28 @@ const ChatInterface = () => {
                 placeholder="Initialize command sequence..."
                 className="flex-1 bg-transparent border-none focus:ring-0 text-sm md:text-base py-3 max-h-32 resize-none placeholder:opacity-40"
                 rows={1}
+                disabled={isLoading} // Optional: disable input while loading
               />
               
-              <button 
-                type="submit"
-                disabled={isLoading || (!input.trim() && !selectedFile)}
-                className="p-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 disabled:opacity-50 disabled:shadow-none transition-all duration-300 hover:scale-105 active:scale-95"
-              >
-                <Send size={20} />
-              </button>
+              {/* --- UPDATED: Stop / Send Toggle --- */}
+              {isLoading ? (
+                  <button 
+                    type="button"
+                    onClick={stopGeneration}
+                    className="p-3 bg-red-500/10 text-red-500 border border-red-500/50 rounded-xl shadow-lg shadow-red-500/20 hover:bg-red-500/20 transition-all duration-300 hover:scale-105 active:scale-95 group"
+                    title="Stop Generating"
+                  >
+                    <Square size={20} fill="currentColor" className="animate-pulse" />
+                  </button>
+              ) : (
+                  <button 
+                    type="submit"
+                    disabled={!input.trim() && !selectedFile}
+                    className="p-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 disabled:opacity-50 disabled:shadow-none transition-all duration-300 hover:scale-105 active:scale-95"
+                  >
+                    <Send size={20} />
+                  </button>
+              )}
             </form>
           </div>
           <div className="text-center mt-3">
@@ -588,11 +629,11 @@ const ChatInterface = () => {
                   className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all
                   ${bgType === bg.id 
                     ? (isDarkMode 
-                        ? 'bg-white/10 border-cyan-500/50 shadow-[0_0_15px_rgba(0,0,0,0.2)]' 
-                        : 'bg-black/5 border-blue-500 shadow-sm')
+                      ? 'bg-white/10 border-cyan-500/50 shadow-[0_0_15px_rgba(0,0,0,0.2)]' 
+                      : 'bg-black/5 border-blue-500 shadow-sm')
                     : (isDarkMode 
-                        ? 'border-white/5 hover:bg-white/5' 
-                        : 'border-gray-200 hover:bg-gray-100')}`}
+                      ? 'border-white/5 hover:bg-white/5' 
+                      : 'border-gray-200 hover:bg-gray-100')}`}
                 >
                   <span className="text-sm font-medium flex items-center gap-2">
                     <span className="opacity-70">{bg.icon}</span> {bg.label}

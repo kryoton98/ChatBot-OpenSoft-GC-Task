@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import API from '../utils/api';
+import { useState, useCallback, useRef } from 'react';
+import API from '../utils/api'; // Keep your existing API wrapper
 
 export const useChat = () => {
   const [messages, setMessages] = useState([]);
@@ -9,6 +9,9 @@ export const useChat = () => {
   
   // Store the list of past chats for the sidebar
   const [chatHistoryList, setChatHistoryList] = useState([]);
+
+  // Ref to handle stopping the request
+  const abortControllerRef = useRef(null);
 
   // 1. Fetch the Sidebar List (Titles & IDs)
   const fetchChatList = useCallback(async () => {
@@ -26,15 +29,13 @@ export const useChat = () => {
     setChatId(id); 
     try {
       const response = await API.get(`/chats/${id}`);
-      // Convert DB messages to UI format
+      
       const formattedMessages = response.data.messages.map(msg => ({
         id: msg._id,
         text: msg.content,
         sender: msg.role === 'user' ? 'user' : 'ai',
         timestamp: msg.timestamp,
         file: msg.image === "Image uploaded" ? "Attached Image" : null,
-        // If we saved the model in DB later, we could load it here too.
-        // For now, history defaults to 'AI'
         model: msg.model || null 
       }));
       setMessages(formattedMessages);
@@ -45,10 +46,13 @@ export const useChat = () => {
     }
   };
 
-  // 3. Send Message (Updated to capture Model Name)
+  // 3. Send Message (Updated with Stop Logic)
   const sendMessage = async (text, file, model) => {
     setIsLoading(true);
     setError(null);
+
+    // Create a new AbortController for this request
+    abortControllerRef.current = new AbortController();
 
     // Optimistic Update (User Message)
     const userMsg = {
@@ -67,8 +71,10 @@ export const useChat = () => {
       if (chatId) formData.append('chatId', chatId);
       if (file) formData.append('image', file);
 
+      // Pass the 'signal' to API.post so we can cancel it
       const response = await API.post('/chats/completion', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        signal: abortControllerRef.current.signal 
       });
 
       // Update Chat ID if this was a new conversation
@@ -78,7 +84,7 @@ export const useChat = () => {
       }
 
       const aiText = response.data.result || response.data.content || "No response";
-      const actualModel = response.data.modelUsed; // <--- NEW: Get the REAL model used (e.g., 'groq')
+      const actualModel = response.data.modelUsed; 
 
       setMessages((prev) => [
         ...prev,
@@ -87,13 +93,48 @@ export const useChat = () => {
           text: aiText,
           sender: "ai",
           timestamp: new Date(),
-          model: actualModel // <--- NEW: Store it so the UI can display it
+          model: actualModel 
         },
       ]);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to send message");
+      // Check if the error was because we cancelled it
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+        console.log('Request canceled by user');
+        setMessages((prev) => [
+            ...prev,
+            { id: Date.now(), text: "🛑 Generation stopped by user.", sender: "ai", isError: true }
+        ]);
+      } else {
+        setError(err.response?.data?.error || "Failed to send message");
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  // 4. Stop Generation Function
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort(); // Cancels the API request
+    }
+  };
+
+  // 5. Delete Chat Function
+  const deleteChat = async (id) => {
+    try {
+        await API.delete(`/chats/${id}`);
+        
+        // Remove from the sidebar list instantly
+        setChatHistoryList((prev) => prev.filter((chat) => chat._id !== id));
+
+        // If we deleted the chat we are currently looking at, clear the screen
+        if (id === chatId) {
+            clearChat();
+        }
+    } catch (err) {
+        console.error("Failed to delete chat:", err);
+        setError("Failed to delete chat");
     }
   };
 
@@ -111,6 +152,9 @@ export const useChat = () => {
     clearChat, 
     chatHistoryList, 
     fetchChatList, 
-    loadChat 
+    loadChat,
+    // Export the new functions
+    stopGeneration,
+    deleteChat
   };
 };

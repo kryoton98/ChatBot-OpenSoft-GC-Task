@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # --- Backend Service ---
+  backend:
+    build: ./backend
+    container_name: my-chatbot-backend
+    ports:
+      - "5000:5000"
+    environment:
+      # Pass your existing .env variables here
+      - PORT=5000
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    volumes:
+      # Syncs your local folder with the container (Hot Reload works!)
+      - ./backend:/app
+      - /app/node_modules
+
+  # --- Frontend Service ---
+  frontend:
+    build: ./frontend
+    container_name: my-chatbot-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # Vite needs this to watch for file changes in Docker
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    volumes:
+      # Syncs your local folder so you can edit code live
+      - ./frontend:/app
+      - /app/node_modules
