@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* In Tailwind v4, we use @variant to set up Dark Mode.
+  This line tells Tailwind: "Apply dark:... styles when the '.dark' class is on the HTML tag."
+*/
+@variant dark (&:where(.dark, .dark *));
+
+/* Global Styles for the Chat App */
+@layer base {
+  body {
+    @apply antialiased;
+  }
+  
+  /* Smooth scrolling for the chat window */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-600;
+  }
+}
