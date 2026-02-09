@@ -34,5 +34,7 @@ To run this project, you will need to add the following environment variables to
 `JWT_REFRESH_SECRET` = your_random_refresh_secret
 `GOOGLE_CLIENT_ID` = your_google_console_client_id
 
+## Watch the demo video 
 [![Watch the Demo](https://img.youtube.com/vi/dvahTG6WgMY/0.jpg)](https://www.youtube.com/watch?v=dvahTG6WgMY)
+
 
